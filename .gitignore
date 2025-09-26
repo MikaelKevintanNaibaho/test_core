@@ -1,0 +1,6 @@
+/obj_dir/
+*.o
+*.hex
+*.bin
+/.nvim/
+*.vcd
