@@ -1,10 +1,13 @@
+// rtl/regfile.v
 /***************************************************************/
-// Register file
+// Register file - FINAL VERSION with Forwarding Logic
 //
 // * 32 x 32-bit registers
 // * two asynchronous read ports
-// * one synchronous write ports
+// * one synchronous write port
+// * Internal forwarding to solve Read-After-Write hazards
 /***************************************************************/
+
 
 module regfile(
     input clk,
@@ -23,7 +26,6 @@ module regfile(
     output [31:0] read_data2
 
 );
-
     reg [31:0] registers[31:0];
 
     // synchronous write port
@@ -44,5 +46,5 @@ module regfile(
     end
 `endif
 
-
 endmodule
+
