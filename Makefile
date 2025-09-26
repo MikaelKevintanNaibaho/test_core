@@ -80,7 +80,7 @@ $(FIRMWARE_HEX): $(FIRMWARE_S) linker.ld
 	# Step 2: Link the object file into an .elf file
 	$(TOOLCHAIN_PREFIX)ld $(LD_FLAGS) -Tlinker.ld $(BUILD_DIR)/firmware.o -o $(FIRMWARE_ELF)
 	# Step 3: Convert the .elf file into a Verilog hex file (this line stays the same)
-	$(TOOLCHAIN_PREFIX)objcopy -O verilog $(FIRMWARE_ELF) $@
+	$(TOOLCHAIN_PREFIX)objcopy -O verilog --verilog-data-width 4 $(FIRMWARE_ELF) $@
 	# Rule to run the simulation
 run: all
 	@echo "### Running simulation... ###"
