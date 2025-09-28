@@ -1,9 +1,8 @@
 /*******************************************************************/
 // Simulation Top-Level Wrapper
 //
-// * Instantiates the CPU (rv32im) and the Memory.
+// * Instantiates the CPU SoC (rv32im_SoC) and the Memory.
 // * Connects them together.
-// * This is the module that Verilator will compile.
 /*******************************************************************/
 
 module sim_top#(
@@ -13,7 +12,7 @@ module sim_top#(
     input reset
 );
 
-    // --- Wires for CPU <-> Memory Connection ---
+    // --- Wires for SoC <-> Memory Connection ---
     wire [31:0] mem_addr;
     wire [31:0] mem_wdata;
     wire [3:0]  mem_wmask;
@@ -22,8 +21,8 @@ module sim_top#(
     wire        mem_rbusy;
     wire        mem_wbusy;
 
-    // --- Instantiate the CPU Core ---
-    rv32im cpu_inst (
+    // --- Instantiate the CPU SoC ---
+    rv32im_SoC soc_inst (
         .clk(clk),
         .reset(reset),
         .mem_addr(mem_addr),
@@ -36,7 +35,6 @@ module sim_top#(
     );
 
     // --- Instantiate the Memory ---
-    // The INIT_FILE parameter is passed from the C++ testbench via a compiler define.
     memory #(
         .INIT_FILE(INIT_FILE)
     ) memory_inst (
