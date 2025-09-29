@@ -36,7 +36,7 @@ module interconnect_cache (
 
     assign mem_addr = icache_turn ? icache_addr : dcache_addr;
     assign mem_wdata = dcache_wdata;
-    assign mem_wmask = dcache_wen ? 4'b1111 : 4'b0000;
+    assign mem_wmask = !icache_turn && dcache_wen ? 4'b1111 : 4'b0000;
     assign mem_rstrb = icache_req | dcache_ren;
 
     assign icache_rdata = mem_rdata;

@@ -20,13 +20,13 @@ module dcache (
 
     // Interface to the Interconnect/Main Memory
     output reg [31:0] iomem_addr,
+    
     output reg [31:0] iomem_wdata,
     output reg iomem_wen,
     output reg iomem_ren,
     input [31:0] iomem_rdata,
     input iomem_ready
 );
-
     // Cache parameters
     localparam CACHE_SIZE_KB = 1;
     localparam NUM_WAYS = 2;
@@ -42,7 +42,6 @@ module dcache (
     localparam FINISH = 3;
 
     reg [2:0] state;
-
     // Cache memory
     reg [TAG_BITS-1:0] tag_array [NUM_WAYS-1:0][NUM_SETS-1:0];
     reg [31:0] data_array [NUM_WAYS-1:0][NUM_SETS-1:0];
@@ -61,9 +60,9 @@ module dcache (
 
     reg [31:0] saved_wdata;
     reg saved_wen;
-
-    // CORRECTED: Synthesizable reset loop
+    
     integer j;
+    
     always @(posedge clk) begin
         if (!reset) begin
             state <= HIT;
@@ -79,6 +78,9 @@ module dcache (
             case (state)
                 HIT: begin
                     cpu_ready <= 1'b0;
+                    iomem_wen <= 1'b0; // Default assignments
+                    iomem_ren <= 1'b0;
+
                     if (cpu_ren || cpu_wen) begin
                         if (hit) begin
                             if (cpu_ren) begin
@@ -98,7 +100,7 @@ module dcache (
                         end else begin // Miss
                             saved_wdata <= cpu_wdata;
                             saved_wen <= cpu_wen;
-                            if (dirty_array[lru_array[index]][index]) begin
+                            if (valid_array[lru_array[index]][index] && dirty_array[lru_array[index]][index]) begin
                                 state <= MEMORY_WRITE;
                                 iomem_addr <= {tag_array[lru_array[index]][index], index, 2'b00};
                                 iomem_wdata <= data_array[lru_array[index]][index];
@@ -111,14 +113,19 @@ module dcache (
                         end
                     end
                 end
+                
+                // --- BUG FIX ---
                 MEMORY_WRITE: begin
-                    iomem_wen <= 1'b0;
+                    // Hold iomem_wen high and wait in this state
+                    // until the memory system is ready to accept the write.
                     if (iomem_ready) begin
+                        iomem_wen <= 1'b0;
                         state <= MEMORY_READ;
                         iomem_addr <= cpu_addr;
                         iomem_ren <= 1'b1;
                     end
                 end
+
                 MEMORY_READ: begin
                     iomem_ren <= 1'b0;
                     if (iomem_ready) begin
