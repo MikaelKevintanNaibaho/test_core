@@ -22,8 +22,8 @@ module lsu (
 );
 
     // Decode acess type from funct3
-    wire is_byte_access      = (funct3[1:0] == 2'b00);
-    wire is_half_access      = (funct3[1:0] == 2'b01);
+    wire is_byte_access     = (funct3[1:0] == 2'b00);
+    wire is_half_access     = (funct3[1:0] == 2'b01);
     wire is_signed_load     = (~funct3[2]);
 
     // ---- LOAD logic ----

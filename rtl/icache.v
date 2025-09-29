@@ -1,9 +1,7 @@
 /*******************************************************************/
 // Instruction Cache (ICACHE)
 //
-// * 4 KB direct-mapped cache
-// * Based on the design in "Implementation of FPGA based 32-bit
-//   RISC-V processor"
+// * 4 KB direct-mapped cache 
 /*******************************************************************/
 
 module icache (
@@ -11,16 +9,16 @@ module icache (
     input reset,
 
     // Interface to the CPU core
-    input [31:0] cpu_addr,
-    input cpu_req,
-    output reg [31:0] cpu_rdata,
-    output reg cpu_ready,
+    input [31:0]        cpu_addr,
+    input               cpu_req,
+    output reg [31:0]   cpu_rdata,
+    output reg          cpu_ready,
 
     // Interface to the Interconnect/Main Memory
-    output reg [31:0] iomem_addr, // CORRECTED: Was 'reg' now '[31:0]'
-    output reg iomem_req,
-    input [31:0] iomem_rdata,
-    input iomem_ready
+    output reg [31:0]   iomem_addr, 
+    output reg          iomem_req,
+    input [31:0]        iomem_rdata,
+    input               iomem_ready
 );
 
     // Cache parameters
@@ -49,7 +47,7 @@ module icache (
     // Hit/miss logic
     wire hit = valid_array[index] && (tag_array[index] == tag);
 
-    // CORRECTED: Synthesizable reset loop
+    
     integer i;
     always @(posedge clk) begin
         if (!reset) begin
@@ -64,28 +62,28 @@ module icache (
                     cpu_ready <= 1'b0;
                     if (cpu_req) begin
                         if (hit) begin
-                            cpu_rdata <= data_array[index];
-                            cpu_ready <= 1'b1;
+                            cpu_rdata   <= data_array[index];
+                            cpu_ready   <= 1'b1;
                         end else begin
-                            state <= MEMORY_PULL;
-                            iomem_addr <= cpu_addr;
-                            iomem_req <= 1'b1;
+                            state       <= MEMORY_PULL;
+                            iomem_addr  <= cpu_addr;
+                            iomem_req   <= 1'b1;
                         end
                     end
                 end
                 MEMORY_PULL: begin
                     iomem_req <= 1'b0;
                     if (iomem_ready) begin
-                        data_array[index] <= iomem_rdata;
-                        tag_array[index] <= tag;
-                        valid_array[index] <= 1'b1;
-                        state <= FINISH;
+                        data_array[index]   <= iomem_rdata;
+                        tag_array[index]    <= tag;
+                        valid_array[index]  <= 1'b1;
+                        state               <= FINISH;
                     end
                 end
                 FINISH: begin
-                    cpu_rdata <= iomem_rdata;
-                    cpu_ready <= 1'b1;
-                    state <= CACHE_READ;
+                    cpu_rdata   <= iomem_rdata;
+                    cpu_ready   <= 1'b1;
+                    state       <= CACHE_READ;
                 end
             endcase
         end

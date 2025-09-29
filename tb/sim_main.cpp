@@ -22,8 +22,8 @@ int main(int argc, char ** argv)
   tfp->open("waveform.vcd");
 
   // Initialize simulation variables
-  vluint64_t main_time = 0;              // Current simulation time
-  const vluint64_t sim_duration = 1000;  // Run for 200 time units
+  vluint64_t main_time = 0;  // Current simulation time
+  const vluint64_t sim_duration = 5000;
 
   // Set initial state
   top->clk = 0;

@@ -11,20 +11,20 @@ module rv32im(
     input reset,        // active-low reset
 
     // I-Cache Interface
-    output [31:0] icache_addr,
-    output icache_req,
-    input [31:0] icache_rdata,
-    input icache_ready,
+    output [31:0]   icache_addr,
+    output          icache_req,
+    input [31:0]    icache_rdata,
+    input           icache_ready,
 
     // D-Cache Interface
-    output [31:0] dcache_addr,
-    output [31:0] dcache_wdata,
-    output dcache_wen,
-    output dcache_ren,
-    input [31:0] dcache_rdata,
-    input dcache_ready
+    output [31:0]   dcache_addr,
+    output [31:0]   dcache_wdata,
+    output [3:0]    dcache_wmask, 
+    output          dcache_wen,
+    output          dcache_ren,
+    input [31:0]    dcache_rdata,
+    input           dcache_ready
 );
-
     // --- Parameters ---
     parameter ADDR_WIDTH = 24;
     parameter RESET_ADDR = 32'h00000000;
@@ -179,7 +179,7 @@ module rv32im(
         .STORE_wdata_out(lsu_store_wdata_out),
         .STORE_wmask_out(lsu_store_wmask_out)
     );
-    
+
     always @(posedge clk) begin
         if (fsm_state == WAIT_INSTR && icache_ready) begin
             instr_reg <= icache_rdata;
@@ -191,7 +191,7 @@ module rv32im(
     // ALU input selection
     assign alu_in1 = rf_read_data1;
     assign alu_in2 = (isALUreg || isBranch) ? rf_read_data2 : Iimm;
-    
+
     // Branch predicate logic
     wire predicate =
         (funct3 == 3'b000 && alu_eq)  || // BEQ
@@ -215,21 +215,20 @@ module rv32im(
                      (isBranch && predicate) ? branch_target :
                       isJAL ? jal_target :
                       pc_plus_4;
-                      
+
     // Data to be written back to the register file
     assign rf_write_data = isLoad ? lsu_load_data_out :
                       (isJAL || isJALR) ? {{(32-ADDR_WIDTH){1'b0}}, pc_plus_4} :
                        isLUI ? Uimm :
                        isAUIPC ? ({{(32-ADDR_WIDTH){1'b0}}, pc_out} + Uimm) :
                        alu_out;
-                       
+
     // I-Cache and D-Cache connections
     assign icache_addr = {{(32-ADDR_WIDTH){1'b0}}, pc_out};
-    
     wire [31:0] lsu_addr = rf_read_data1 + (isStore ? Simm : Iimm);
     assign dcache_addr  = lsu_addr;
     assign dcache_wdata = lsu_store_wdata_out;
-    // dcache_wen and dcache_ren are driven by the FSM
+    assign dcache_wmask = lsu_store_wmask_out; // Connect the LSU wmask
 
     // Final write-enable for the register file
     wire instr_writes_back = isALU | isLUI | isAUIPC | isJAL | isJALR | isLoad;

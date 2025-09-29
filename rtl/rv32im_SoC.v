@@ -10,42 +10,44 @@ module rv32im_SoC (
     input reset,
 
     // Interface to main memory
-    output [31:0] mem_addr,
-    output [31:0] mem_wdata,
-    output [3:0] mem_wmask,
-    input [31:0] mem_rdata,
-    output mem_rstrb,
-    input mem_rbusy,
-    input mem_wbusy
+    output [31:0]   mem_addr,
+    output [31:0]   mem_wdata,
+    output [3:0]    mem_wmask,
+    input [31:0]    mem_rdata,
+    output          mem_rstrb,
+    input           mem_rbusy,
+    input           mem_wbusy
 );
 
     // Core <-> ICache connections
-    wire [31:0] core_icache_addr;
-    wire core_icache_req;
-    wire [31:0] core_icache_rdata;
-    wire core_icache_ready;
+    wire [31:0]     core_icache_addr;
+    wire            core_icache_req;
+    wire [31:0]     core_icache_rdata;
+    wire            core_icache_ready;
 
     // Core <-> DCache connections
-    wire [31:0] core_dcache_addr;
-    wire [31:0] core_dcache_wdata;
-    wire core_dcache_wen;
-    wire core_dcache_ren;
-    wire [31:0] core_dcache_rdata;
-    wire core_dcache_ready;
+    wire [31:0]     core_dcache_addr;
+    wire [31:0]     core_dcache_wdata;
+    wire [3:0]      core_dcache_wmask;
+    wire            core_dcache_wen;
+    wire            core_dcache_ren;
+    wire [31:0]     core_dcache_rdata;
+    wire            core_dcache_ready;
 
     // ICache <-> Interconnect connections
-    wire [31:0] icache_iomem_addr;
-    wire icache_iomem_req;
-    wire [31:0] icache_iomem_rdata;
-    wire icache_iomem_ready;
+    wire [31:0]     icache_iomem_addr;
+    wire            icache_iomem_req;
+    wire [31:0]     icache_iomem_rdata;
+    wire            icache_iomem_ready;
 
     // DCache <-> Interconnect connections
-    wire [31:0] dcache_iomem_addr;
-    wire [31:0] dcache_iomem_wdata;
-    wire dcache_iomem_wen;
-    wire dcache_iomem_ren;
-    wire [31:0] dcache_iomem_rdata;
-    wire dcache_iomem_ready;
+    wire [31:0]     dcache_iomem_addr;
+    wire [31:0]     dcache_iomem_wdata;
+    wire [3:0]      dcache_iomem_wmask; 
+    wire            dcache_iomem_wen;
+    wire            dcache_iomem_ren;
+    wire [31:0]     dcache_iomem_rdata;
+    wire            dcache_iomem_ready;
 
     // 1. Instantiate the CPU Core
     rv32im cpu_core_inst (
@@ -57,6 +59,7 @@ module rv32im_SoC (
         .icache_ready(core_icache_ready),
         .dcache_addr(core_dcache_addr),
         .dcache_wdata(core_dcache_wdata),
+        .dcache_wmask(core_dcache_wmask),
         .dcache_wen(core_dcache_wen),
         .dcache_ren(core_dcache_ren),
         .dcache_rdata(core_dcache_rdata),
@@ -83,12 +86,14 @@ module rv32im_SoC (
         .reset(reset),
         .cpu_addr(core_dcache_addr),
         .cpu_wdata(core_dcache_wdata),
+        .cpu_wmask(core_dcache_wmask),
         .cpu_wen(core_dcache_wen),
         .cpu_ren(core_dcache_ren),
         .cpu_rdata(core_dcache_rdata),
         .cpu_ready(core_dcache_ready),
         .iomem_addr(dcache_iomem_addr),
         .iomem_wdata(dcache_iomem_wdata),
+        .iomem_wmask(dcache_iomem_wmask), 
         .iomem_wen(dcache_iomem_wen),
         .iomem_ren(dcache_iomem_ren),
         .iomem_rdata(dcache_iomem_rdata),
@@ -105,6 +110,7 @@ module rv32im_SoC (
         .icache_ready(icache_iomem_ready),
         .dcache_addr(dcache_iomem_addr),
         .dcache_wdata(dcache_iomem_wdata),
+        .dcache_wmask(dcache_iomem_wmask), 
         .dcache_wen(dcache_iomem_wen),
         .dcache_ren(dcache_iomem_ren),
         .dcache_rdata(dcache_iomem_rdata),

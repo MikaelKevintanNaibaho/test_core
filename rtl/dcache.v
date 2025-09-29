@@ -2,8 +2,6 @@
 // Data Cache (DCACHE)
 //
 // * 1 KB 2-way set-associative cache
-// * Based on the design in "Implementation of FPGA based 32-bit
-//   RISC-V processor"
 /*******************************************************************/
 
 module dcache (
@@ -11,22 +9,24 @@ module dcache (
     input reset,
 
     // Interface to the CPU core
-    input [31:0] cpu_addr,
-    input [31:0] cpu_wdata,
-    input cpu_wen,
-    input cpu_ren,
-    output reg [31:0] cpu_rdata,
-    output reg cpu_ready,
+    input [31:0]        cpu_addr,
+    input [31:0]        cpu_wdata,
+    input [3:0]         cpu_wmask,
+    input               cpu_wen,
+    input               cpu_ren,
+    output reg [31:0]   cpu_rdata,
+    output reg          cpu_ready,
 
     // Interface to the Interconnect/Main Memory
-    output reg [31:0] iomem_addr,
-    
-    output reg [31:0] iomem_wdata,
-    output reg iomem_wen,
-    output reg iomem_ren,
-    input [31:0] iomem_rdata,
-    input iomem_ready
+    output reg [31:0]   iomem_addr,
+    output reg [31:0]   iomem_wdata,
+    output reg [3:0]    iomem_wmask, 
+    output reg          iomem_wen,
+    output reg          iomem_ren,
+    input [31:0]        iomem_rdata,
+    input               iomem_ready
 );
+
     // Cache parameters
     localparam CACHE_SIZE_KB = 1;
     localparam NUM_WAYS = 2;
@@ -42,6 +42,7 @@ module dcache (
     localparam FINISH = 3;
 
     reg [2:0] state;
+
     // Cache memory
     reg [TAG_BITS-1:0] tag_array [NUM_WAYS-1:0][NUM_SETS-1:0];
     reg [31:0] data_array [NUM_WAYS-1:0][NUM_SETS-1:0];
@@ -51,22 +52,22 @@ module dcache (
 
     // Address decoding
     wire [INDEX_BITS-1:0] index = cpu_addr[INDEX_BITS+1:2];
-    wire [TAG_BITS-1:0] tag = cpu_addr[31:INDEX_BITS+2];
+    wire [TAG_BITS-1:0] tag     = cpu_addr[31:INDEX_BITS+2];
 
     // Hit/miss logic
-    wire hit0 = valid_array[0][index] && (tag_array[0][index] == tag);
-    wire hit1 = valid_array[1][index] && (tag_array[1][index] == tag);
-    wire hit = hit0 | hit1;
+    wire hit0   = valid_array[0][index] && (tag_array[0][index] == tag);
+    wire hit1   = valid_array[1][index] && (tag_array[1][index] == tag);
+    wire hit    = hit0 | hit1;
 
     reg [31:0] saved_wdata;
     reg saved_wen;
-    
     integer j;
     
     always @(posedge clk) begin
         if (!reset) begin
             state <= HIT;
             cpu_ready <= 1'b0;
+            iomem_wmask <= 4'b0;
             for (j = 0; j < NUM_SETS; j = j + 1) begin
                 valid_array[0][j] = 1'b0;
                 valid_array[1][j] = 1'b0;
@@ -78,9 +79,9 @@ module dcache (
             case (state)
                 HIT: begin
                     cpu_ready <= 1'b0;
-                    iomem_wen <= 1'b0; // Default assignments
+                    iomem_wen <= 1'b0;
                     iomem_ren <= 1'b0;
-
+                    iomem_wmask <= 4'b0;
                     if (cpu_ren || cpu_wen) begin
                         if (hit) begin
                             if (cpu_ren) begin
@@ -88,14 +89,20 @@ module dcache (
                             end
                             if (cpu_wen) begin
                                 if (hit0) begin
-                                    data_array[0][index] <= cpu_wdata;
+                                    if (cpu_wmask[0]) data_array[0][index][7:0]   <= cpu_wdata[7:0];
+                                    if (cpu_wmask[1]) data_array[0][index][15:8]  <= cpu_wdata[15:8];
+                                    if (cpu_wmask[2]) data_array[0][index][23:16] <= cpu_wdata[23:16];
+                                    if (cpu_wmask[3]) data_array[0][index][31:24] <= cpu_wdata[31:24];
                                     dirty_array[0][index] <= 1'b1;
                                 end else begin
-                                    data_array[1][index] <= cpu_wdata;
+                                    if (cpu_wmask[0]) data_array[1][index][7:0]   <= cpu_wdata[7:0];
+                                    if (cpu_wmask[1]) data_array[1][index][15:8]  <= cpu_wdata[15:8];
+                                    if (cpu_wmask[2]) data_array[1][index][23:16] <= cpu_wdata[23:16];
+                                    if (cpu_wmask[3]) data_array[1][index][31:24] <= cpu_wdata[31:24];
                                     dirty_array[1][index] <= 1'b1;
                                 end
                             end
-                            lru_array[index] <= hit0; // Update LRU
+                            lru_array[index] <= hit0;
                             cpu_ready <= 1'b1;
                         end else begin // Miss
                             saved_wdata <= cpu_wdata;
@@ -105,6 +112,7 @@ module dcache (
                                 iomem_addr <= {tag_array[lru_array[index]][index], index, 2'b00};
                                 iomem_wdata <= data_array[lru_array[index]][index];
                                 iomem_wen <= 1'b1;
+                                iomem_wmask <= 4'b1111; // Write-back is full word
                             end else begin
                                 state <= MEMORY_READ;
                                 iomem_addr <= cpu_addr;
@@ -114,12 +122,10 @@ module dcache (
                     end
                 end
                 
-                // --- BUG FIX ---
                 MEMORY_WRITE: begin
-                    // Hold iomem_wen high and wait in this state
-                    // until the memory system is ready to accept the write.
                     if (iomem_ready) begin
                         iomem_wen <= 1'b0;
+                        iomem_wmask <= 4'b0;
                         state <= MEMORY_READ;
                         iomem_addr <= cpu_addr;
                         iomem_ren <= 1'b1;

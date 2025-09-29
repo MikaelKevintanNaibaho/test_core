@@ -20,7 +20,7 @@ module control_unit(
     // Control Outputs
     output pc_load_en,
     output alu_op_valid,
-    output writeBack_en,
+    output reg writeBack_en,
     output icache_req,
     output dcache_ren,
     output dcache_wen,
@@ -46,7 +46,6 @@ module control_unit(
     // --- Combinatorial control signal generation ---
     assign pc_load_en     = (state == EXECUTE);
     assign alu_op_valid   = (state == EXECUTE) & isDivide;
-    assign writeBack_en   = (state == EXECUTE) || (state == WAIT_ALU_OR_MEM);
     assign icache_req     = (state == FETCH_INSTR);
     assign dcache_ren     = (state == EXECUTE) && isLoad;
     assign dcache_wen     = (state == EXECUTE) && isStore;
@@ -55,6 +54,12 @@ module control_unit(
     wire needToWait = isLoad || isStore || isDivide;
 
     always @(posedge clk) begin
+        if (!reset) begin
+            writeBack_en <= 1'b0;
+        end else begin
+            writeBack_en <= (state == EXECUTE && !needToWait) || 
+                            (state == WAIT_ALU_OR_MEM && isLoad && dcache_ready);
+        end
         if (!reset) begin
             state <= FETCH_INSTR;
         end else begin
