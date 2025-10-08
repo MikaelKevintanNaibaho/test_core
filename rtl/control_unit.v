@@ -61,7 +61,8 @@ module control_unit(
             writeBack_en <= 1'b0;
         end else begin
             writeBack_en <= (state == EXECUTE && !needToWait) ||
-                            (state == WAIT_ALU_OR_MEM && isLoad && dcache_ready);
+            (state == WAIT_ALU_OR_MEM && isLoad && dcache_ready) ||
+            (state == WAIT_ALU_OR_MEM && isDivide && !aluBusy);;
         end
         if (!reset) begin
             state <= FETCH_INSTR;
