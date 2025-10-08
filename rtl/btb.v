@@ -40,7 +40,7 @@ module btb #(
 
     // Synchronous update
     always @(posedge clk) begin
-        if (reset) begin
+        if (!reset) begin
             for (i = 0; i < N_ENTRIES; i = i + 1) begin
                 tags[i] <= {ADDR_WIDTH{1'b0}};
                 targets[i] <= {ADDR_WIDTH{1'b0}};
