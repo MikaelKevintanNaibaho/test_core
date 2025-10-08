@@ -16,6 +16,8 @@ module control_unit(
     input aluBusy,
     input icache_ready,
     input dcache_ready,
+    input btb_hit,
+    input branch_mispredict,
 
     // Control Outputs
     output pc_load_en,
@@ -25,7 +27,7 @@ module control_unit(
     output dcache_ren,
     output dcache_wen,
 
-    output [3:0] state_out
+    output [4:0] state_out
 );
 
     // --- State Machine Definition ---
@@ -33,18 +35,19 @@ module control_unit(
     localparam WAIT_INSTR_bit         = 1;
     localparam EXECUTE_INSTR_bit      = 2;
     localparam WAIT_ALU_OR_MEM_bit    = 3;
-    localparam NB_STATES              = 4;
-
+    localparam FLUSH_bit              = 4;
+    localparam NB_STATES              = 5;
     localparam FETCH_INSTR      = 1 << FETCH_INSTR_bit;
     localparam WAIT_INSTR       = 1 << WAIT_INSTR_bit;
     localparam EXECUTE          = 1 << EXECUTE_INSTR_bit;
     localparam WAIT_ALU_OR_MEM  = 1 << WAIT_ALU_OR_MEM_bit;
+    localparam FLUSH            = 1 << FLUSH_bit;
 
     (* onehot *)
     reg [NB_STATES-1:0] state;
 
     // --- Combinatorial control signal generation ---
-    assign pc_load_en     = (state == EXECUTE);
+    assign pc_load_en     = (state == EXECUTE) || (state == FLUSH);
     assign alu_op_valid   = (state == EXECUTE) & isDivide;
     assign icache_req     = (state == FETCH_INSTR);
     assign dcache_ren     = (state == EXECUTE) && isLoad;
@@ -57,7 +60,7 @@ module control_unit(
         if (!reset) begin
             writeBack_en <= 1'b0;
         end else begin
-            writeBack_en <= (state == EXECUTE && !needToWait) || 
+            writeBack_en <= (state == EXECUTE && !needToWait) ||
                             (state == WAIT_ALU_OR_MEM && isLoad && dcache_ready);
         end
         if (!reset) begin
@@ -75,7 +78,9 @@ module control_unit(
                 end 
 
                 EXECUTE: begin
-                    if (needToWait) begin
+                    if (branch_mispredict) begin
+                        state <= FLUSH;
+                    end else if (needToWait) begin
                         state <= WAIT_ALU_OR_MEM;
                     end else begin
                         state <= FETCH_INSTR;
@@ -90,6 +95,11 @@ module control_unit(
                         state <= FETCH_INSTR;
                     end
                 end
+                
+                FLUSH: begin
+                    state <= FETCH_INSTR;
+                end
+
 
                 default: begin
                     state <= FETCH_INSTR;
@@ -99,5 +109,4 @@ module control_unit(
     end
 
     assign state_out = state;
-
 endmodule

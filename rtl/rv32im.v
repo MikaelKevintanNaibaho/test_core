@@ -18,6 +18,7 @@ module rv32im(
 
     // D-Cache Interface
     output [31:0]   dcache_addr,
+    
     output [31:0]   dcache_wdata,
     output [3:0]    dcache_wmask, 
     output          dcache_wen,
@@ -25,14 +26,16 @@ module rv32im(
     input [31:0]    dcache_rdata,
     input           dcache_ready
 );
+
     // --- Parameters ---
     parameter ADDR_WIDTH = 24;
     parameter RESET_ADDR = 32'h00000000;
 
     // --- Internal Wires and Registers ---
     reg [31:0] instr_reg;
-    wire [3:0] fsm_state;
-    wire [3:0] WAIT_INSTR = 4'b0010;
+    reg        fsm_flush_req; // Used for flushing
+    wire [4:0] fsm_state;
+    wire [4:0] EXECUTE_STATE = 5'b00100;
 
     // PC Control signals
     wire [ADDR_WIDTH-1:0]   pc_out;
@@ -73,6 +76,15 @@ module rv32im(
     // Immediate value wires
     wire [31:0] Iimm, Simm, Bimm, Uimm, Jimm;
 
+    // --- Branch Prediction and Misprediction Logic ---
+    wire        btb_hit;
+    wire [ADDR_WIDTH-1:0] btb_target_out;
+    wire        branch_taken;
+    wire [ADDR_WIDTH-1:0] branch_target_addr;
+    wire [ADDR_WIDTH-1:0] predicted_pc_next;
+    wire [ADDR_WIDTH-1:0] resolved_pc_next;
+    wire        branch_mispredict;
+
     // --- Instruction Decoding ---
     assign rdId    = instr_reg[11:7];
     assign rs1Id   = instr_reg[19:15];
@@ -105,6 +117,20 @@ module rv32im(
 
     // --- Module Instantiations ---
 
+    // 0. Branch Target Buffer (BTB)
+    btb #(
+        .N_ENTRIES(4),
+        .ADDR_WIDTH(ADDR_WIDTH)
+    ) btb_inst (
+        .clk(clk),
+        .reset(reset),
+        .pc_in(pc_out),
+        .branch_taken(branch_taken),
+        .branch_target_in(branch_target_addr),
+        .btb_hit(btb_hit),
+        .btb_target_out(btb_target_out)
+    );
+
     // 1. PC Control Unit
     pc_control #(
         .ADDR_WIDTH(ADDR_WIDTH),
@@ -128,6 +154,10 @@ module rv32im(
         .aluBusy(alu_busy),
         .icache_ready(icache_ready),
         .dcache_ready(dcache_ready),
+        // Connections that were missing:
+        .btb_hit(btb_hit),
+        .branch_mispredict(branch_mispredict),
+        // Control Outputs
         .pc_load_en(pc_load_en),
         .alu_op_valid(alu_op_valid),
         .writeBack_en(rf_write_en_from_fsm),
@@ -181,7 +211,9 @@ module rv32im(
     );
 
     always @(posedge clk) begin
-        if (fsm_state == WAIT_INSTR && icache_ready) begin
+        if (!reset || fsm_flush_req) begin
+            instr_reg <= 32'b0; // Flush the instruction register
+        end else if (fsm_state == 5'b00010 && icache_ready) begin // WAIT_INSTR state
             instr_reg <= icache_rdata;
         end
     end
@@ -200,6 +232,8 @@ module rv32im(
         (funct3 == 3'b101 && ~alu_lt) || // BGE
         (funct3 == 3'b110 && alu_ltu) || // BLTU
         (funct3 == 3'b111 && ~alu_ltu);  // BGEU
+    
+    assign branch_taken = (isBranch && predicate) || isJAL || isJALR;
 
     // Next PC calculation
     wire [ADDR_WIDTH-1:0] branch_target; 
@@ -211,10 +245,26 @@ module rv32im(
     assign jal_target    = pc_out + Jimm[ADDR_WIDTH-1:0];
     assign jalr_sum      = rf_read_data1 + Iimm;
     assign jalr_target   = jalr_sum[ADDR_WIDTH-1:0] & 24'hFFFFFE;
-    assign pc_next =  isJALR ? jalr_target :
-                     (isBranch && predicate) ? branch_target :
-                      isJAL ? jal_target :
-                      pc_plus_4;
+
+    assign branch_target_addr = isJALR ? jalr_target : 
+                               (isJAL ? jal_target : branch_target);
+
+    // Prediction and Misprediction Logic
+    assign predicted_pc_next = btb_hit ? btb_target_out : pc_plus_4;
+    assign resolved_pc_next  = branch_taken ? branch_target_addr : pc_plus_4;
+    assign branch_mispredict = (predicted_pc_next != resolved_pc_next) && (fsm_state == EXECUTE_STATE);
+    
+    // The FSM controls when to flush
+    always @(*) begin
+        if (fsm_state == 5'b10000) begin // FLUSH state
+            fsm_flush_req = 1'b1;
+        end else begin
+            fsm_flush_req = 1'b0;
+        end
+    end
+
+    // Final PC Mux
+    assign pc_next = fsm_flush_req ? resolved_pc_next : predicted_pc_next;
 
     // Data to be written back to the register file
     assign rf_write_data = isLoad ? lsu_load_data_out :
@@ -228,7 +278,7 @@ module rv32im(
     wire [31:0] lsu_addr = rf_read_data1 + (isStore ? Simm : Iimm);
     assign dcache_addr  = lsu_addr;
     assign dcache_wdata = lsu_store_wdata_out;
-    assign dcache_wmask = lsu_store_wmask_out; // Connect the LSU wmask
+    assign dcache_wmask = lsu_store_wmask_out;
 
     // Final write-enable for the register file
     wire instr_writes_back = isALU | isLUI | isAUIPC | isJAL | isJALR | isLoad;
