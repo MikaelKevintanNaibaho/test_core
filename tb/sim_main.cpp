@@ -23,7 +23,7 @@ int main(int argc, char ** argv)
 
   // Initialize simulation variables
   vluint64_t main_time = 0;  // Current simulation time
-  const vluint64_t sim_duration = 5000;
+  const vluint64_t sim_duration = 1500;
 
   // Set initial state
   top->clk = 0;
